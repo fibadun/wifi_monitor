@@ -6,13 +6,13 @@
 #include <TZ.h>
 
 /* ===== CONFIG ===== */
-const char* WIFI_SSID = "svlvyd";
-const char* WIFI_PASS = "11111111";
+const char* WIFI_SSID = "Название сети";
+const char* WIFI_PASS = "Пароль";
 
-const char* TG_BOT_TOKEN = "5167506430:AAEi4OgXuiARlGnq3S7Rx7pJjSyc-CEoQE8";
-const char* TG_CHAT_ID  = "798715819";
+const char* TG_BOT_TOKEN = "Токен Telegram-бота";
+const char* TG_CHAT_ID  = "Ваш User-id в Telegram";
 
-const char* SERVER_HOST = "31.56.196.234";
+const char* SERVER_HOST = "Адрес сервера";
 const int   SERVER_PORT = 8080;
 const char* SERVER_API  = "/api/v1/logs";
 
@@ -754,3 +754,4 @@ void loop() {
   Serial.printf("[WAIT] ⏳ Ожидание %d секунд...\n\n", CYCLE_DELAY / 1000);
   delay(CYCLE_DELAY);
 }
+
