@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .stat-card {
+            transition: transform 0.3s;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .threat-critical { border-left: 5px solid #dc3545; }
+        .threat-high { border-left: 5px solid #fd7e14; }
+        .threat-medium { border-left: 5px solid #ffc107; }
+        .threat-low { border-left: 5px solid #28a745; }
+        .network-row:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="dashboard-container p-4 p-md-5">
+            <!-- Заголовок -->
+            <div class="row mb-5">
+                <div class="col">
+                    <h1 class="display-4 fw-bold text-primary">
+                        <i class="bi bi-shield-check"></i> Устройство для мониторинга Wi-Fi сетей
+                    </h1>
+                    <p class="lead text-muted">Отслеживание окружения в реальном времени</p>
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-grow text-success spinner-grow-sm me-2" id="status-indicator"></div>
+                        <small id="last-update" class="text-muted">Последнее обновление: --:--:--</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Статистика -->
+            <div class="row g-4 mb-5" id="stats-cards">
+                <!-- Заполняется JavaScript -->
+            </div>
+
+            <!-- Графики -->
+            <div class="row g-4 mb-5">
+                <div class="col-lg-8">
+                    <div class="card stat-card h-100">
+                        <div class="card-header bg-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up"></i> Сетевая активность за последние 24 часа
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="activityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card stat-card h-100">
+                        <div class="card-header bg-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> Типы угроз
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="threatsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Последние угрозы -->
+            <div class="row mb-5">
+                <div class="col">
+                    <div class="card stat-card">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-shield-exclamation"></i> Последние уведомления
+                            </h5>
+                            <span class="badge bg-danger" id="threats-count">0</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0" id="threats-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Время</th>
+                                            <th>Тип</th>
+                                            <th>Серьезность</th>
+                                            <th>Целевая сеть</th>
+                                            <th>Описание</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="threats-body">
+                                        <!-- Заполняется JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Устройства -->
+            <div class="row">
+                <div class="col">
+                    <div class="card stat-card">
+                        <div class="card-header bg-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-router"></i> Подключенные устройства
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="devices-list">
+                                <!-- Заполняется JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные
+        let activityChart = null;
+        let threatsChart = null;
+
+        // Форматирование времени
+        function formatTime(date) {
+            return new Date(date).toLocaleTimeString('ru-RU');
+        }
+
+        function formatDate(date) {
+            return new Date(date).toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+
+        // Получение данных с сервера
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/v1/statistics');
+                if (!response.ok) throw new Error('Ошибка сервера');
+                return await response.json();
+            } catch (error) {
+                console.error('Ошибка получения данных:', error);
+                return null;
+            }
+        }
+
+        async function fetchDevices() {
+            try {
+                const response = await fetch('/api/v1/devices');
+                if (!response.ok) throw new Error('Ошибка сервера');
+                return await response.json();
+            } catch (error) {
+                console.error('Ошибка получения устройств:', error);
+                return null;
+            }
+        }
+
+        // Обновление статистических карточек
+        function updateStatsCards(stats) {
+            const cardsContainer = document.getElementById('stats-cards');
+            
+            const cards = [
+                {
+                    title: 'Всего сканирований',
+                    value: stats.total_scans || 0,
+                    icon: 'bi-activity',
+                    color: 'primary',
+                    subtitle: 'За 24 часа'
+                },
+                {
+                    title: 'Обнаружено сетей',
+                    value: stats.total_networks || 0,
+                    icon: 'bi-wifi',
+                    color: 'success',
+                    subtitle: 'Уникальных точек доступа'
+                },
+                {
+                    title: 'Найдено угроз',
+                    value: stats.total_threats || 0,
+                    icon: 'bi-shield-exclamation',
+                    color: 'danger',
+                    subtitle: 'Инцидентов безопасности'
+                },
+                {
+                    title: 'Последнее сканирование',
+                    value: stats.last_scan ? formatTime(stats.last_scan) : 'Никогда',
+                    icon: 'bi-clock-history',
+                    color: 'info',
+                    subtitle: stats.last_scan ? formatDate(stats.last_scan) : ''
+                }
+            ];
+            
+            cardsContainer.innerHTML = cards.map(card => `
+                <div class="col-md-3 col-sm-6">
+                    <div class="card stat-card border-${card.color}">
+                        <div class="card-body text-center">
+                            <div class="mb-3">
+                                <i class="bi ${card.icon} fs-1 text-${card.color}"></i>
+                            </div>
+                            <h2 class="card-title fw-bold">${card.value}</h2>
+                            <h6 class="card-subtitle mb-2 text-muted">${card.title}</h6>
+                            <small class="text-muted">${card.subtitle}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Обновление таблицы угроз
+        function updateThreatsTable(threats) {
+            const tableBody = document.getElementById('threats-body');
+            const threatsCount = document.getElementById('threats-count');
+            
+            threatsCount.textContent = threats.length;
+            
+            if (threats.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="bi bi-emoji-smile fs-1 d-block mb-2"></i>
+                            За последние 24 часа не выявлено угроз
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tableBody.innerHTML = threats.map(threat => `
+                <tr class="threat-${threat.severity}">
+                    <td>
+                        <div class="fw-bold">${formatTime(threat.timestamp)}</div>
+                        <small class="text-muted">${formatDate(threat.timestamp)}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-dark">${threat.type}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-${getSeverityColor(threat.severity)}">
+                            ${getSeverityText(threat.severity)}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="fw-bold">${threat.target_ssid || 'Н/Д'}</div>
+                        <small class="text-muted">${threat.target_bssid || ''}</small>
+                    </td>
+                    <td>${threat.description}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getSeverityColor(severity) {
+            switch(severity) {
+                case 'critical': return 'danger';
+                case 'high': return 'warning';
+                case 'medium': return 'info';
+                case 'low': return 'success';
+                default: return 'secondary';
+            }
+        }
+
+        function getSeverityText(severity) {
+            switch(severity) {
+                case 'critical': return 'КРИТИЧЕСКАЯ';
+                case 'high': return 'ВЫСОКАЯ';
+                case 'medium': return 'СРЕДНЯЯ';
+                case 'low': return 'НИЗКАЯ';
+                default: return severity.toUpperCase();
+            }
+        }
+
+        // Обновление списка устройств
+        function updateDevicesList(devices) {
+            const devicesList = document.getElementById('devices-list');
+            
+            if (!devices || devices.length === 0) {
+                devicesList.innerHTML = `
+                    <div class="col-12 text-center text-muted py-4">
+                        <i class="bi bi-router fs-1"></i>
+                        <p class="mt-2">Нет подключенных устройств</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            devicesList.innerHTML = devices.map(device => `
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="bi bi-cpu fs-3 text-primary me-3"></i>
+                                <div>
+                                    <h6 class="mb-0">${device.device_id}</h6>
+                                    <small class="text-muted">ID устройства</small>
+                                </div>
+                            </div>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="fw-bold">${device.scan_count}</div>
+                                    <small class="text-muted">Сканирований</small>
+                                </div>
+                                <div class="col-6">
+                                    <div class="fw-bold">${device.total_threats}</div>
+                                    <small class="text-muted">Угроз</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i>
+                                Устройство было в сети в ${formatTime(device.last_seen)}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Создание/обновление графиков
+        function updateCharts(stats) {
+            // График активности
+            const activityCtx = document.getElementById('activityChart').getContext('2d');
+            const hours = stats.networks_by_hour.map(item => `${item.hour}:00`);
+            const networks = stats.networks_by_hour.map(item => item.avg_networks);
+            
+            if (activityChart) {
+                activityChart.destroy();
+            }
+            
+            activityChart = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: 'Среднее количество сетей',
+                        data: networks,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Количество сетей'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // График угроз
+            const threatsCtx = document.getElementById('threatsChart').getContext('2d');
+            const threatTypes = stats.threats_by_type.map(item => item.type);
+            const threatCounts = stats.threats_by_type.map(item => item.count);
+            
+            if (threatsChart) {
+                threatsChart.destroy();
+            }
+            
+            threatsChart = new Chart(threatsCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: threatTypes,
+                    datasets: [{
+                        data: threatCounts,
+                        backgroundColor: [
+                            '#dc3545', // critical
+                            '#fd7e14', // high
+                            '#ffc107', // medium
+                            '#28a745', // low
+                            '#6f42c1'  // other
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Основная функция обновления дашборда
+        async function updateDashboard() {
+            const statusIndicator = document.getElementById('status-indicator');
+            const lastUpdate = document.getElementById('last-update');
+            
+            try {
+                // Получаем данные
+                const [data, devices] = await Promise.all([
+                    fetchData(),
+                    fetchDevices()
+                ]);
+                
+                if (!data) throw new Error('Данные не получены');
+                
+                // Обновляем индикатор
+                statusIndicator.classList.remove('text-danger');
+                statusIndicator.classList.add('text-success');
+                
+                // Обновляем время
+                lastUpdate.textContent = `Последнее обновление: ${new Date().toLocaleTimeString('ru-RU')}`;
+                
+                // Обновляем компоненты
+                updateStatsCards(data.stats);
+                updateThreatsTable(data.recent_threats);
+                updateDevicesList(devices?.devices || []);
+                updateCharts(data);
+                
+            } catch (error) {
+                console.error('Ошибка обновления дашборда:', error);
+                statusIndicator.classList.remove('text-success');
+                statusIndicator.classList.add('text-danger');
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            // Первое обновление
+            updateDashboard();
+            
+            // Обновляем каждые 10 секунд
+            setInterval(updateDashboard, 10000);
+            
+            // Проверка соединения
+            setInterval(async () => {
+                try {
+                    await fetch('/api/v1/health');
+                } catch (error) {
+                    console.error('Проверка состояния не удалась:', error);
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>
